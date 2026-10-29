@@ -1,0 +1,10 @@
+{
+  "name": "PHANTOM DERIVED",
+  "short_name": "PHANTOM",
+  "description": "PHANTOM mobile trading platform prototype",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "icons": []
+}

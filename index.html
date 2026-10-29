@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <title>PHANTOM DERIVED</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark">P</div>
+    <div><div class="brand">PHANTOM <span>DERIVED</span></div><div class="eyebrow">SYNTHETIC MARKETS • TRADING TERMINAL</div></div>
+    <div class="status"><i></i> DEMO MODE</div>
+  </header>
+  <main>
+    <section class="hero">
+      <div><p class="eyebrow blue">YOUR EDGE. YOUR CONTROL.</p><h1>Trade with a<br><span>clear strategy.</span></h1><p class="muted">Connect your Deriv account when the secure API integration is configured.</p></div>
+      <div class="hero-symbol">✦</div>
+    </section>
+    <section class="grid">
+      <article class="panel balance">
+        <div class="panel-head"><span>ACCOUNT BALANCE</span><span class="pill">DEMO PREVIEW</span></div>
+        <div class="money" id="balance">—</div>
+        <p class="muted small">Balance appears here after account authorization.</p>
+        <button class="primary" id="connectBtn">Connect Deriv account</button>
+        <p class="hint" id="connectionNote">Not connected • No trades can be placed from this preview.</p>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><span>TRADING MODE</span><span class="live-dot"></span></div>
+        <div class="mode-switch">
+          <button class="mode active" data-mode="manual">Manual</button>
+          <button class="mode" data-mode="auto">Automatic</button>
+        </div>
+        <p class="muted small" id="modeDescription">Review signals and choose whether to trade.</p>
+        <label class="field-label" for="market">Market</label>
+        <select id="market"><option value="R_10">Volatility 10 Index</option><option value="R_25">Volatility 25 Index</option><option value="R_50">Volatility 50 Index</option><option value="R_75">Volatility 75 Index</option><option value="R_100">Volatility 100 Index</option></select>
+        <label class="field-label" for="strategy">Strategy</label>
+        <select id="strategy"><option>Digit Matches / Differs</option><option>Digit Over / Under</option><option>Rise / Fall</option></select>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><span>RISK CONTROLS</span><span class="pill green">USER CONTROLLED</span></div>
+        <div class="two-fields">
+          <div><label class="field-label" for="stake">Stake (USD)</label><input id="stake" type="number" min="0.35" step="0.01" value="1.00"></div>
+          <div><label class="field-label" for="duration">Duration (ticks)</label><input id="duration" type="number" min="1" max="100" value="5"></div>
+        </div>
+        <div class="two-fields">
+          <div><label class="field-label" for="dailyLoss">Daily loss limit (USD)</label><input id="dailyLoss" type="number" min="1" value="10"></div>
+          <div><label class="field-label" for="dailyProfit">Daily profit target (USD)</label><input id="dailyProfit" type="number" min="1" value="10"></div>
+        </div>
+        <p class="hint">Limits are settings only in this prototype; enforcement must be implemented in the trading backend before live trading.</p>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><span>TRADE ACTIVITY</span><span class="pill">PREVIEW</span></div>
+        <div class="empty-state"><div class="empty-icon">⌁</div><strong>No trades yet</strong><p class="muted small">Trade history will appear after the Deriv API and execution engine are connected.</p></div>
+      </article>
+    </section>
+    <section class="notice"><strong>⚠ Risk notice</strong><p>Trading synthetic indices and options can result in loss of your stake. This preview does not connect to Deriv, generate signals, or execute trades. Test all strategies on a demo account before enabling real-money trading. No profits are guaranteed.</p></section>
+  </main>
+  <footer>PHANTOM DERIVED <span>•</span> Prototype build 0.1</footer>
+  <script src="/app.js"></script>
+</body>
+</html>
