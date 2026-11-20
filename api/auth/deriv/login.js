@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     .update(verifier)
     .digest("base64url");
 
-  const url = new URL("https://oauth.deriv.com/oauth2/authorize");
+  const url = new URL("https://auth.deriv.com/oauth2/auth");
 
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", clientId);
