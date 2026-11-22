@@ -8,41 +8,41 @@ export default async function handler(req, res) {
 
   res.setHeader("Cache-Control", "no-store");
 
-  const cookies = Object.fromEntries(
-    (req.headers.cookie || "")
-      .split(";")
-      .filter(Boolean)
-      .map(item => {
-        const index = item.indexOf("=");
-        return [
-          item.slice(0, index).trim(),
-          decodeURIComponent(item.slice(index + 1).trim())
-        ];
-      })
-  );
-
-  const token = cookies.phantom_deriv_token;
-  const appId = process.env.DERIV_CLIENT_ID;
-
-  if (!token || !appId) {
-    return res.status(401).json({
-      connected: false,
-      error: "Deriv account not connected"
-    });
-  }
-
-  if (typeof WebSocket === "undefined") {
-    return res.status(503).json({
-      connected: false,
-      error: "WebSocket unavailable"
-    });
-  }
-
-  const ws = new WebSocket(
-    `wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`
-  );
-
   try {
+    const cookies = Object.fromEntries(
+      (req.headers.cookie || "")
+        .split(";")
+        .filter(Boolean)
+        .map(item => {
+          const index = item.indexOf("=");
+          return [
+            item.slice(0, index).trim(),
+            decodeURIComponent(item.slice(index + 1).trim())
+          ];
+        })
+    );
+
+    const token = cookies.phantom_deriv_token;
+    const appId = process.env.DERIV_CLIENT_ID;
+
+    if (!token || !appId) {
+      return res.status(401).json({
+        connected: false,
+        error: "Deriv account not connected"
+      });
+    }
+
+    if (typeof WebSocket === "undefined") {
+      return res.status(503).json({
+        connected: false,
+        error: "WebSocket unavailable"
+      });
+    }
+
+    const ws = new WebSocket(
+      `wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`
+    );
+
     const account = await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         ws.close();
@@ -50,28 +50,39 @@ export default async function handler(req, res) {
       }, 10000);
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ authorize: token }));
+        ws.send(JSON.stringify({
+          authorize: token
+        }));
       };
 
       ws.onmessage = event => {
-        const message = JSON.parse(event.data);
+        try {
+          const message = JSON.parse(event.data);
 
-        if (message.error) {
-          clearTimeout(timeout);
-          reject(new Error("Deriv authorization failed"));
-          ws.close();
-          return;
-        }
+          if (message.error) {
+            clearTimeout(timeout);
+            ws.close();
+            reject(new Error(
+              message.error.message || "Deriv authorization failed"
+            ));
+            return;
+          }
 
-        if (message.msg_type === "authorize") {
+          if (message.msg_type === "authorize") {
+            clearTimeout(timeout);
+            ws.close();
+            resolve(message.authorize);
+          }
+        } catch (error) {
           clearTimeout(timeout);
-          resolve(message.authorize);
           ws.close();
+          reject(error);
         }
       };
 
       ws.onerror = () => {
         clearTimeout(timeout);
+        ws.close();
         reject(new Error("Deriv connection failed"));
       };
     });
@@ -84,9 +95,9 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    return res.status(401).json({
+    return res.status(500).json({
       connected: false,
-      error: error.message
+      error: error.message || "Unable to verify Deriv connection"
     });
   }
 }
