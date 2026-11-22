@@ -23,81 +23,78 @@ export default async function handler(req, res) {
     );
 
     const token = cookies.phantom_deriv_token;
-    const appId = process.env.DERIV_CLIENT_ID;
 
-    if (!token || !appId) {
+    if (!token) {
       return res.status(401).json({
         connected: false,
         error: "Deriv account not connected"
       });
     }
 
-    if (typeof WebSocket === "undefined") {
-      return res.status(503).json({
+    const response = await fetch(
+      "https://api.derivws.com/trading/v1/options/accounts",
+      {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json"
+        }
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      const message =
+        result.errors?.[0]?.message ||
+        result.error ||
+        "Unable to retrieve Deriv accounts";
+
+      return res.status(response.status).json({
         connected: false,
-        error: "WebSocket unavailable"
+        error: message
       });
     }
 
-    const ws = new WebSocket(
-      `wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`
-    );
+    const accounts = Array.isArray(result.data)
+      ? result.data
+      : [];
 
-    const account = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        ws.close();
-        reject(new Error("Deriv connection timed out"));
-      }, 10000);
+    const account =
+      accounts.find(item =>
+        item.account_type === "demo" &&
+        item.status === "active"
+      ) ||
+      accounts.find(item => item.status === "active") ||
+      accounts[0];
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          authorize: token
-        }));
-      };
-
-      ws.onmessage = event => {
-        try {
-          const message = JSON.parse(event.data);
-
-          if (message.error) {
-            clearTimeout(timeout);
-            ws.close();
-            reject(new Error(
-              message.error.message || "Deriv authorization failed"
-            ));
-            return;
-          }
-
-          if (message.msg_type === "authorize") {
-            clearTimeout(timeout);
-            ws.close();
-            resolve(message.authorize);
-          }
-        } catch (error) {
-          clearTimeout(timeout);
-          ws.close();
-          reject(error);
-        }
-      };
-
-      ws.onerror = () => {
-        clearTimeout(timeout);
-        ws.close();
-        reject(new Error("Deriv connection failed"));
-      };
-    });
+    if (!account) {
+      return res.status(404).json({
+        connected: false,
+        error: "No Deriv trading accounts found"
+      });
+    }
 
     return res.status(200).json({
       connected: true,
-      loginid: account.loginid,
+      loginid: account.account_id,
+      account_id: account.account_id,
       currency: account.currency,
-      balance: account.balance ?? null
+      balance: account.balance,
+      account_type: account.account_type,
+      accounts: accounts.map(item => ({
+        account_id: item.account_id,
+        currency: item.currency,
+        balance: item.balance,
+        account_type: item.account_type,
+        status: item.status
+      }))
     });
 
   } catch (error) {
     return res.status(500).json({
       connected: false,
-      error: error.message || "Unable to verify Deriv connection"
+      error: error.message || "Deriv connection failed"
     });
   }
 }
