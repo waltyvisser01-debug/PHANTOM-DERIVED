@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -30,6 +31,8 @@
   <div class="hero-symbol">✦</div>
 </section>
 
+<!-- ACCOUNT -->
+
 <section class="grid">
 
 <article class="panel balance">
@@ -50,6 +53,8 @@
     Not connected • Connect your account to continue.
   </p>
 </article>
+
+<!-- BOT CONTROL -->
 
 <article class="panel">
   <div class="panel-head">
@@ -84,6 +89,8 @@
     <option>Rise / Fall</option>
   </select>
 </article>
+
+<!-- RISK MANAGEMENT -->
 
 <article class="panel">
   <div class="panel-head">
@@ -120,6 +127,8 @@
   </p>
 </article>
 
+<!-- ACTIVITY -->
+
 <article class="panel">
   <div class="panel-head">
     <span>TRADE ACTIVITY</span>
@@ -137,6 +146,142 @@
 
 </section>
 
+<!-- PHANTOM BOT LIBRARY -->
+
+<section class="library-section" id="phantomLibrary">
+
+  <div class="library-heading">
+    <p class="eyebrow blue">PHANTOM HUNTER</p>
+    <h2>PHANTOM BOT <span>LIBRARY</span></h2>
+    <p class="muted">
+      Explore your Phantom trading systems.
+    </p>
+  </div>
+
+  <div class="bot-library">
+
+    <!-- BOT 1 -->
+
+    <article class="panel bot-card">
+
+      <div class="bot-top">
+        <div class="bot-icon">✦</div>
+        <span class="pill green">AVAILABLE</span>
+      </div>
+
+      <h3>PHANTOM DIGITS HUNTER</h3>
+
+      <p class="muted small">
+        A digit-focused trading system designed for digit-based contracts.
+      </p>
+
+      <div class="bot-details">
+        <div>
+          <span class="muted small">STRATEGY</span>
+          <strong>Digits</strong>
+        </div>
+
+        <div>
+          <span class="muted small">CONTRACT</span>
+          <strong>Matches / Differs</strong>
+        </div>
+      </div>
+
+      <button class="bot-select" data-bot="PHANTOM DIGITS HUNTER">
+        Select Bot
+      </button>
+
+    </article>
+
+    <!-- BOT 2 -->
+
+    <article class="panel bot-card">
+
+      <div class="bot-top">
+        <div class="bot-icon">⌁</div>
+        <span class="pill green">AVAILABLE</span>
+      </div>
+
+      <h3>PHANTOM VOLATILITY HUNTER</h3>
+
+      <p class="muted small">
+        A volatility-focused system built for synthetic index market analysis.
+      </p>
+
+      <div class="bot-details">
+        <div>
+          <span class="muted small">STRATEGY</span>
+          <strong>Volatility</strong>
+        </div>
+
+        <div>
+          <span class="muted small">CONTRACT</span>
+          <strong>Rise / Fall</strong>
+        </div>
+      </div>
+
+      <button class="bot-select" data-bot="PHANTOM VOLATILITY HUNTER">
+        Select Bot
+      </button>
+
+    </article>
+
+    <!-- BOT 3 -->
+
+    <article class="panel bot-card">
+
+      <div class="bot-top">
+        <div class="bot-icon">⚡</div>
+        <span class="pill green">AVAILABLE</span>
+      </div>
+
+      <h3>PHANTOM OVER UNDER</h3>
+
+      <p class="muted small">
+        A digit-based system designed around Over and Under contracts.
+      </p>
+
+      <div class="bot-details">
+        <div>
+          <span class="muted small">STRATEGY</span>
+          <strong>Digit prediction</strong>
+        </div>
+
+        <div>
+          <span class="muted small">CONTRACT</span>
+          <strong>Over / Under</strong>
+        </div>
+      </div>
+
+      <button class="bot-select" data-bot="PHANTOM OVER UNDER">
+        Select Bot
+      </button>
+
+    </article>
+
+  </div>
+
+  <!-- SELECTED BOT -->
+
+  <article class="panel selected-bot-panel">
+
+    <div class="panel-head">
+      <span>SELECTED SYSTEM</span>
+      <span class="pill">LIBRARY</span>
+    </div>
+
+    <h3 id="selectedBotName">No bot selected</h3>
+
+    <p class="muted small" id="selectedBotMessage">
+      Select a system from the Phantom Bot Library above.
+    </p>
+
+  </article>
+
+</section>
+
+<!-- RISK NOTICE -->
+
 <section class="notice">
   <strong>⚠ Risk notice</strong>
   <p>
@@ -153,6 +298,31 @@
 </footer>
 
 <script src="/app.js"></script>
+
+<script>
+document.querySelectorAll(".bot-select").forEach(button => {
+
+  button.addEventListener("click", function() {
+
+    const botName = this.dataset.bot;
+
+    document.getElementById("selectedBotName").textContent = botName;
+
+    document.getElementById("selectedBotMessage").textContent =
+      botName + " selected. Bot trading execution is not activated by this selection.";
+
+    document.querySelectorAll(".bot-select").forEach(btn => {
+      btn.textContent = "Select Bot";
+      btn.classList.remove("selected");
+    });
+
+    this.textContent = "Selected";
+    this.classList.add("selected");
+
+  });
+
+});
+</script>
 
 </body>
 </html>
