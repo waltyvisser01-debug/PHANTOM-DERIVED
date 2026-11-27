@@ -1,4 +1,5 @@
-// PHANTOM HUNTER - PHANTOM DERIVED
+
+ // PHANTOM HUNTER - PHANTOM DERIVED
 
 const connectBtn = document.getElementById("connectBtn");
 const balanceEl = document.getElementById("balance");
@@ -9,9 +10,37 @@ const modeButtons = document.querySelectorAll(".mode");
 const marketSelect = document.getElementById("market");
 const strategySelect = document.getElementById("strategy");
 
+const botButtons = document.querySelectorAll(".bot-select");
+const selectedBotName = document.getElementById("selectedBotName");
+const selectedBotMessage = document.getElementById("selectedBotMessage");
+
+const stakeInput = document.getElementById("stake");
+const durationInput = document.getElementById("duration");
+const dailyLossInput = document.getElementById("dailyLoss");
+const dailyProfitInput = document.getElementById("dailyProfit");
+
 let derivAccounts = [];
 let selectedAccount = null;
 let currentMode = "manual";
+let selectedBot = null;
+
+// BOT CONFIGURATION
+const botConfigurations = {
+  "PHANTOM DIGITS HUNTER": {
+    strategy: "Digit Matches / Differs",
+    description: "Digit-focused system selected. Review settings before trading."
+  },
+
+  "PHANTOM VOLATILITY HUNTER": {
+    strategy: "Rise / Fall",
+    description: "Volatility system selected. Review settings before trading."
+  },
+
+  "PHANTOM OVER UNDER": {
+    strategy: "Digit Over / Under",
+    description: "Over/Under system selected. Review settings before trading."
+  }
+};
 
 // DERIV CONNECTION
 if (connectBtn) {
@@ -35,18 +64,69 @@ modeButtons.forEach(button => {
   });
 });
 
-// UPDATE MODE
+// MODE DISPLAY
 function updateMode() {
   if (!modeDescription) return;
 
   if (currentMode === "manual") {
     modeDescription.textContent =
-      "Manual mode selected. Review your market and strategy settings.";
+      selectedBot
+        ? `${selectedBot} selected. Manual mode is active.`
+        : "Manual mode selected. Review your market and strategy settings.";
   } else {
     modeDescription.textContent =
       "Automatic mode selected. Trading engine is not activated.";
   }
 }
+
+// BOT LIBRARY
+botButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    const botName = button.dataset.bot;
+
+    if (!botConfigurations[botName]) return;
+
+    selectedBot = botName;
+
+    const config = botConfigurations[botName];
+
+    if (strategySelect) {
+      const matchingOption = Array.from(strategySelect.options).find(
+        option => option.text.trim() === config.strategy
+      );
+
+      if (matchingOption) {
+        strategySelect.value = matchingOption.value;
+      } else {
+        const option = document.createElement("option");
+
+        option.text = config.strategy;
+        option.value = config.strategy;
+
+        strategySelect.appendChild(option);
+        strategySelect.value = config.strategy;
+      }
+    }
+
+    if (selectedBotName) {
+      selectedBotName.textContent = botName;
+    }
+
+    if (selectedBotMessage) {
+      selectedBotMessage.textContent = config.description;
+    }
+
+    botButtons.forEach(item => {
+      item.classList.remove("selected");
+      item.textContent = "Select Bot";
+    });
+
+    button.classList.add("selected");
+    button.textContent = "Selected";
+
+    updateMode();
+  });
+});
 
 // DISPLAY ACCOUNT
 function displayAccount(account) {
@@ -56,7 +136,7 @@ function displayAccount(account) {
 
   if (balanceEl) {
     balanceEl.textContent =
-      `${account.currency} ${Number(account.balance || 0).toFixed(2)}`;
+      `${account.currency || "USD"} ${Number(account.balance || 0).toFixed(2)}`;
   }
 
   if (connectionNote) {
@@ -150,7 +230,7 @@ async function checkDerivConnection() {
         account.account_id === selectedAccount?.account_id
       ) ||
       derivAccounts.find(account =>
-        account.account_type === "demo"
+        String(account.account_type).toLowerCase() === "demo"
       ) ||
       derivAccounts[0];
 
@@ -171,6 +251,47 @@ async function checkDerivConnection() {
     console.error("PHANTOM HUNTER:", error);
   }
 }
+
+// SETTINGS VALIDATION
+function validateSettings() {
+  const stake = Number(stakeInput?.value);
+  const duration = Number(durationInput?.value);
+  const dailyLoss = Number(dailyLossInput?.value);
+  const dailyProfit = Number(dailyProfitInput?.value);
+
+  if (
+    !Number.isFinite(stake) ||
+    stake <= 0 ||
+    !Number.isFinite(duration) ||
+    duration < 1 ||
+    !Number.isFinite(dailyLoss) ||
+    dailyLoss <= 0 ||
+    !Number.isFinite(dailyProfit) ||
+    dailyProfit <= 0
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+// SETTINGS FEEDBACK
+[
+  stakeInput,
+  durationInput,
+  dailyLossInput,
+  dailyProfitInput
+].forEach(input => {
+  if (!input) return;
+
+  input.addEventListener("change", () => {
+    if (!validateSettings()) {
+      input.style.borderColor = "#ff4d4d";
+    } else {
+      input.style.borderColor = "";
+    }
+  });
+});
 
 // INITIALIZE
 updateMode();
