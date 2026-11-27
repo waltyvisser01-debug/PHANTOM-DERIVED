@@ -1,21 +1,54 @@
-
-// PHANTOM HUNTER - Deriv Account Connection
+// PHANTOM HUNTER - PHANTOM DERIVED
 
 const connectBtn = document.getElementById("connectBtn");
 const balanceEl = document.getElementById("balance");
 const connectionNote = document.getElementById("connectionNote");
+const modeDescription = document.getElementById("modeDescription");
+
+const modeButtons = document.querySelectorAll(".mode");
+const marketSelect = document.getElementById("market");
+const strategySelect = document.getElementById("strategy");
 
 let derivAccounts = [];
 let selectedAccount = null;
+let currentMode = "manual";
 
-// Connect to Deriv
+// DERIV CONNECTION
 if (connectBtn) {
   connectBtn.addEventListener("click", () => {
     window.location.href = "/api/auth/deriv/login";
   });
 }
 
-// Display selected Deriv account
+// MODE CONTROL
+modeButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    currentMode = button.dataset.mode;
+
+    modeButtons.forEach(item => {
+      item.classList.remove("active");
+    });
+
+    button.classList.add("active");
+
+    updateMode();
+  });
+});
+
+// UPDATE MODE
+function updateMode() {
+  if (!modeDescription) return;
+
+  if (currentMode === "manual") {
+    modeDescription.textContent =
+      "Manual mode selected. Review your market and strategy settings.";
+  } else {
+    modeDescription.textContent =
+      "Automatic mode selected. Trading engine is not activated.";
+  }
+}
+
+// DISPLAY ACCOUNT
 function displayAccount(account) {
   if (!account) return;
 
@@ -80,7 +113,7 @@ function displayAccount(account) {
   }
 }
 
-// Check Deriv connection
+// CHECK DERIV CONNECTION
 async function checkDerivConnection() {
   if (connectionNote) {
     connectionNote.textContent = "Checking Deriv connection...";
@@ -139,5 +172,6 @@ async function checkDerivConnection() {
   }
 }
 
-// Start connection check
+// INITIALIZE
+updateMode();
 checkDerivConnection();
