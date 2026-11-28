@@ -1,6 +1,5 @@
-
 // PHANTOM HUNTER - PHANTOM DERIVED
-// LIVE MARKET DATA + ADVANCED SIGNAL FILTER
+// LIVE MARKET DATA + ADVANCED SIGNAL FILTER + SIGNAL HISTORY
 // DEMO PROPOSAL MODE ONLY - NO CONTRACT PURCHASES
 
 "use strict";
@@ -45,6 +44,14 @@ let currentSignalReason = "Waiting for market ticks...";
 
 const MAX_TICKS = 30;
 const MIN_TICKS = 10;
+
+// SIGNAL TRACKER
+let signalHistory = [];
+let pendingSignals = [];
+let lastTrackedSignal = "WAIT";
+
+const SIGNAL_HISTORY_LIMIT = 20;
+const SIGNAL_CHECK_TICKS = 5;
 
 // BOT CONFIGURATION
 const botConfigurations = {
@@ -158,6 +165,35 @@ function createSignalDisplay() {
   return display;
 }
 
+// CREATE SIGNAL HISTORY DISPLAY
+function createSignalHistoryDisplay() {
+  let display = document.getElementById("phantomSignalHistory");
+
+  if (!display) {
+    const signalDisplay = createSignalDisplay();
+
+    if (!signalDisplay) return null;
+
+    display = document.createElement("div");
+    display.id = "phantomSignalHistory";
+
+    display.style.cssText = `
+      margin-top:12px;
+      padding:15px;
+      background:#071629;
+      border:1px solid #168cff;
+      border-radius:10px;
+      color:white;
+      font-size:14px;
+      line-height:1.7;
+    `;
+
+    signalDisplay.insertAdjacentElement("afterend", display);
+  }
+
+  return display;
+}
+
 // RESET SIGNAL DATA
 function resetSignalData() {
   tickHistory = [];
@@ -166,10 +202,14 @@ function resetSignalData() {
   currentSignal = "COLLECTING DATA";
   currentSignalReason = "Waiting for new market ticks...";
 
+  lastTrackedSignal = "WAIT";
+  pendingSignals = [];
+
   updateSignalDisplay();
+  updateSignalHistoryDisplay();
 }
 
-// CALCULATE AVERAGE
+// AVERAGE
 function average(values) {
   if (!values.length) return 0;
 
@@ -186,7 +226,10 @@ function calculateSignal() {
     currentSignalReason =
       `${tickHistory.length}/${MIN_TICKS} different ticks collected`;
 
+    lastTrackedSignal = "WAIT";
+
     updateSignalDisplay();
+    updateSignalHistoryDisplay();
     return;
   }
 
@@ -255,6 +298,9 @@ function calculateSignal() {
       "Trend confirmation failed or price movement is too small.";
   }
 
+  // RECORD NEW DIRECTIONAL SIGNAL
+  trackDirectionalSignal(latestPrice);
+
   updateSignalDisplay({
     shortAverage,
     previousAverage,
@@ -263,6 +309,241 @@ function calculateSignal() {
     downwardMoves,
     noiseThreshold
   });
+
+  updateSignalHistoryDisplay();
+}
+
+// RECORD DIRECTIONAL SIGNAL
+function trackDirectionalSignal(price) {
+  if (currentSignal !== "RISE" && currentSignal !== "FALL") {
+    lastTrackedSignal = "WAIT";
+    return;
+  }
+
+  // Record only a new signal transition
+  if (currentSignal === lastTrackedSignal) {
+    return;
+  }
+
+  const tick = tickHistory[tickHistory.length - 1];
+
+  if (!tick) return;
+
+  const record = {
+    direction: currentSignal,
+    entryPrice: price,
+    entryEpoch: tick.epoch,
+    ticksPassed: 0,
+    status: "PENDING",
+    exitPrice: null,
+    result: null
+  };
+
+  pendingSignals.push(record);
+
+  lastTrackedSignal = currentSignal;
+}
+
+// EVALUATE PENDING SIGNALS
+function evaluatePendingSignals(tick) {
+  for (let i = pendingSignals.length - 1; i >= 0; i--) {
+    const signal = pendingSignals[i];
+
+    // Ignore the entry tick
+    if (tick.epoch <= signal.entryEpoch) {
+      continue;
+    }
+
+    signal.ticksPassed++;
+
+    if (signal.ticksPassed >= SIGNAL_CHECK_TICKS) {
+      signal.exitPrice = tick.price;
+
+      const difference =
+        signal.exitPrice - signal.entryPrice;
+
+      if (difference === 0) {
+        signal.result = "FLAT";
+
+      } else if (
+        signal.direction === "RISE" &&
+        difference > 0
+      ) {
+        signal.result = "WIN";
+
+      } else if (
+        signal.direction === "FALL" &&
+        difference < 0
+      ) {
+        signal.result = "WIN";
+
+      } else {
+        signal.result = "LOSS";
+      }
+
+      signal.status = "COMPLETED";
+
+      signalHistory.unshift(signal);
+
+      if (signalHistory.length > SIGNAL_HISTORY_LIMIT) {
+        signalHistory.pop();
+      }
+
+      pendingSignals.splice(i, 1);
+    }
+  }
+}
+
+// UPDATE SIGNAL HISTORY DISPLAY
+function updateSignalHistoryDisplay() {
+  const display = createSignalHistoryDisplay();
+
+  if (!display) return;
+
+  const wins = signalHistory.filter(
+    item => item.result === "WIN"
+  ).length;
+
+  const losses = signalHistory.filter(
+    item => item.result === "LOSS"
+  ).length;
+
+  const flats = signalHistory.filter(
+    item => item.result === "FLAT"
+  ).length;
+
+  const completed = wins + losses + flats;
+
+  const winRate = completed
+    ? ((wins / completed) * 100).toFixed(1)
+    : "0.0";
+
+  let pendingHTML = "";
+
+  if (pendingSignals.length) {
+    pendingHTML = pendingSignals.map(signal => {
+      return `
+        <div style="
+          padding:8px;
+          margin-top:6px;
+          border-bottom:1px solid #20344c;
+        ">
+          <span style="color:${
+            signal.direction === "RISE"
+              ? "#20d68b"
+              : "#ff6262"
+          }">
+            ${signal.direction}
+          </span>
+          |
+          Entry: ${signal.entryPrice}
+          |
+          ${signal.ticksPassed}/${SIGNAL_CHECK_TICKS} ticks
+          |
+          PENDING
+        </div>
+      `;
+    }).join("");
+  } else {
+    pendingHTML = `
+      <div style="margin-top:8px;color:#9fb4cc;">
+        No pending signals.
+      </div>
+    `;
+  }
+
+  let historyHTML = "";
+
+  if (signalHistory.length) {
+    historyHTML = signalHistory.map(signal => {
+      const resultColor =
+        signal.result === "WIN"
+          ? "#20d68b"
+          : signal.result === "LOSS"
+          ? "#ff6262"
+          : "#ffc857";
+
+      return `
+        <div style="
+          padding:9px;
+          margin-top:7px;
+          border-bottom:1px solid #20344c;
+        ">
+          <span style="color:${
+            signal.direction === "RISE"
+              ? "#20d68b"
+              : "#ff6262"
+          }">
+            ${signal.direction}
+          </span>
+          |
+          Entry: ${signal.entryPrice}
+          |
+          Exit: ${signal.exitPrice}
+          |
+          <span style="color:${resultColor}">
+            ${signal.result}
+          </span>
+          <br>
+          <small>
+            ${new Date(signal.entryEpoch * 1000).toLocaleTimeString()}
+          </small>
+        </div>
+      `;
+    }).join("");
+  } else {
+    historyHTML = `
+      <div style="margin-top:8px;color:#9fb4cc;">
+        No completed signals yet.
+      </div>
+    `;
+  }
+
+  display.innerHTML = `
+    <div style="
+      font-size:17px;
+      font-weight:bold;
+      color:#168cff;
+    ">
+      PHANTOM SIGNAL HISTORY
+    </div>
+
+    <div style="margin-top:8px;">
+      Completed: ${completed}
+      | Wins: <span style="color:#20d68b">${wins}</span>
+      | Losses: <span style="color:#ff6262">${losses}</span>
+      | Flat: <span style="color:#ffc857">${flats}</span>
+    </div>
+
+    <div style="margin-top:5px;">
+      Directional hit rate: ${winRate}%
+    </div>
+
+    <hr style="border-color:#20344c;">
+
+    <div style="font-weight:bold;">
+      PENDING SIGNALS
+    </div>
+
+    ${pendingHTML}
+
+    <hr style="border-color:#20344c;">
+
+    <div style="font-weight:bold;">
+      RECENT RESULTS
+    </div>
+
+    ${historyHTML}
+
+    <small style="
+      display:block;
+      margin-top:10px;
+      color:#9fb4cc;
+    ">
+      Experimental direction tracker • 5 sampled ticks •
+      No contracts purchased
+    </small>
+  `;
 }
 
 // UPDATE SIGNAL DISPLAY
@@ -315,6 +596,12 @@ function recordMarketTick(tick) {
   }
 
   lastTickEpoch = epoch;
+
+  // Evaluate previous signals using new ticks
+  evaluatePendingSignals({
+    price,
+    epoch
+  });
 
   tickHistory.push({
     price,
@@ -832,5 +1119,6 @@ function stopAutomaticMode(message) {
 // INITIALIZE
 updateMode();
 updateSignalDisplay();
+updateSignalHistoryDisplay();
 checkDerivConnection();
 startMarketUpdates();
