@@ -1,4 +1,5 @@
-// PHANTOM HUNTER - PHANTOM DERIVED
+
+ // PHANTOM HUNTER - PHANTOM DERIVED
 // LIVE MARKET DATA + ADVANCED SIGNAL FILTER + SIGNAL HISTORY
 // DEMO PROPOSAL MODE ONLY - NO CONTRACT PURCHASES
 
@@ -314,9 +315,16 @@ function calculateSignal() {
 }
 
 // RECORD DIRECTIONAL SIGNAL
+// ONE PENDING COMPARISON AT A TIME
 function trackDirectionalSignal(price) {
   if (currentSignal !== "RISE" && currentSignal !== "FALL") {
     lastTrackedSignal = "WAIT";
+    return;
+  }
+
+  // Prevent overlapping signal evaluations
+  if (pendingSignals.length > 0) {
+    lastTrackedSignal = currentSignal;
     return;
   }
 
@@ -540,8 +548,8 @@ function updateSignalHistoryDisplay() {
       margin-top:10px;
       color:#9fb4cc;
     ">
-      Experimental direction tracker • 5 sampled ticks •
-      No contracts purchased
+      Experimental tracker • One pending comparison at a time •
+      5 sampled ticks • No contracts purchased
     </small>
   `;
 }
