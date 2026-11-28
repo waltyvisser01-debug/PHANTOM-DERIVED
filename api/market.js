@@ -12,29 +12,12 @@ export default async function handler(req, res) {
 
   const symbol = String(req.query?.symbol || "R_10");
 
-  const allowedSymbols = [
-    "R_10",
-    "R_25",
-    "R_50",
-    "R_75",
-    "R_100"
-  ];
+  const allowedSymbols = ["R_10", "R_25", "R_50", "R_75", "R_100"];
 
   if (!allowedSymbols.includes(symbol)) {
     return res.status(400).json({
       success: false,
       error: "Invalid market symbol"
-    });
-  }
-
-  const appId =
-    process.env.DERIV_CLIENT_ID ||
-    process.env.DERIV_APP_ID;
-
-  if (!appId) {
-    return res.status(500).json({
-      success: false,
-      error: "Deriv App ID is missing"
     });
   }
 
@@ -46,18 +29,22 @@ export default async function handler(req, res) {
 
       const timer = setTimeout(() => {
         finish(reject, new Error("Market data timed out"));
-      }, 12000);
+      }, 15000);
 
       function finish(callback, value) {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        socket?.close();
+
+        try {
+          socket?.close();
+        } catch {}
+
         callback(value);
       }
 
       socket = new WebSocket(
-        `wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`
+        "wss://api.derivws.com/trading/v1/options/ws/public"
       );
 
       socket.on("open", () => {
@@ -88,8 +75,8 @@ export default async function handler(req, res) {
         }
       });
 
-      socket.on("error", () => {
-        finish(reject, new Error("WebSocket connection failed"));
+      socket.on("error", error => {
+        finish(reject, new Error(error.message));
       });
 
       socket.on("close", () => {
