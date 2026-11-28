@@ -1,3 +1,4 @@
+import WebSocket from "ws";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -37,13 +38,6 @@ export default async function handler(req, res) {
     });
   }
 
-  if (typeof WebSocket === "undefined") {
-    return res.status(500).json({
-      success: false,
-      error: "WebSocket unavailable"
-    });
-  }
-
   let socket;
 
   try {
@@ -56,14 +50,9 @@ export default async function handler(req, res) {
 
       function finish(callback, value) {
         if (settled) return;
-
         settled = true;
         clearTimeout(timer);
-
-        try {
-          socket?.close();
-        } catch {}
-
+        socket?.close();
         callback(value);
       }
 
@@ -71,16 +60,16 @@ export default async function handler(req, res) {
         `wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appId)}`
       );
 
-      socket.addEventListener("open", () => {
+      socket.on("open", () => {
         socket.send(JSON.stringify({
           ticks: symbol,
           subscribe: 0
         }));
       });
 
-      socket.addEventListener("message", event => {
+      socket.on("message", message => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse(message.toString());
 
           if (data.error) {
             finish(reject, new Error(data.error.message));
@@ -99,11 +88,11 @@ export default async function handler(req, res) {
         }
       });
 
-      socket.addEventListener("error", () => {
+      socket.on("error", () => {
         finish(reject, new Error("WebSocket connection failed"));
       });
 
-      socket.addEventListener("close", () => {
+      socket.on("close", () => {
         if (!settled) {
           finish(reject, new Error("Connection closed"));
         }
