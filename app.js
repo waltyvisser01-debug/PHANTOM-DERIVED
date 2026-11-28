@@ -1,6 +1,7 @@
 
 // PHANTOM HUNTER - PHANTOM DERIVED
-// LIVE MARKET DATA - DEMO PROPOSAL MODE ONLY
+// LIVE MARKET DATA + SIGNAL ENGINE
+// DEMO PROPOSAL MODE ONLY - NO CONTRACT PURCHASES
 
 "use strict";
 
@@ -35,6 +36,13 @@ let engineBusy = false;
 let marketTimer = null;
 let marketBusy = false;
 
+// SIGNAL ENGINE STATE
+let tickHistory = [];
+let lastTickEpoch = null;
+let currentSignal = "COLLECTING DATA";
+let currentSignalReason = "Waiting for market ticks...";
+const MAX_TICKS = 30;
+
 // BOT CONFIGURATION
 const botConfigurations = {
   "PHANTOM DIGITS HUNTER": {
@@ -46,7 +54,7 @@ const botConfigurations = {
   "PHANTOM VOLATILITY HUNTER": {
     strategy: "Rise / Fall",
     strategyValue: "rise_fall",
-    description: "Volatility Rise/Fall proposal system selected."
+    description: "Volatility Rise/Fall signal system selected."
   },
 
   "PHANTOM OVER UNDER": {
@@ -67,6 +75,7 @@ function setStatus(message) {
 function showActivity(message) {
   if (tradeActivity) {
     tradeActivity.textContent = message;
+    tradeActivity.style.whiteSpace = "pre-wrap";
   }
 }
 
@@ -90,7 +99,7 @@ function getMarketSymbol() {
   return symbols[market] || "R_10";
 }
 
-// LIVE MARKET DISPLAY
+// CREATE LIVE MARKET DISPLAY
 function createMarketDisplay() {
   let display = document.getElementById("phantomMarketPrice");
 
@@ -114,6 +123,162 @@ function createMarketDisplay() {
   }
 
   return display;
+}
+
+// CREATE SIGNAL DISPLAY
+function createSignalDisplay() {
+  let display = document.getElementById("phantomSignal");
+
+  if (!display) {
+    const marketDisplay = createMarketDisplay();
+
+    if (!marketDisplay) return null;
+
+    display = document.createElement("div");
+    display.id = "phantomSignal";
+
+    display.style.cssText = `
+      margin-top:10px;
+      padding:16px;
+      background:#071629;
+      border:1px solid #168cff;
+      border-radius:10px;
+      color:white;
+      text-align:center;
+      font-weight:bold;
+      line-height:1.7;
+    `;
+
+    marketDisplay.insertAdjacentElement("afterend", display);
+  }
+
+  return display;
+}
+
+// RESET SIGNAL DATA WHEN MARKET CHANGES
+function resetSignalData() {
+  tickHistory = [];
+  lastTickEpoch = null;
+  currentSignal = "COLLECTING DATA";
+  currentSignalReason = "Waiting for new market ticks...";
+  updateSignalDisplay();
+}
+
+// CALCULATE AVERAGE
+function average(values) {
+  if (!values.length) return 0;
+
+  return values.reduce((sum, value) => sum + value, 0) /
+    values.length;
+}
+
+// SIGNAL ENGINE
+function calculateSignal() {
+  if (tickHistory.length < 10) {
+    currentSignal = "COLLECTING DATA";
+    currentSignalReason =
+      `${tickHistory.length}/10 different ticks collected`;
+    updateSignalDisplay();
+    return;
+  }
+
+  const prices = tickHistory.map(tick => tick.price);
+
+  const recentFive = prices.slice(-5);
+  const previousFive = prices.slice(-10, -5);
+
+  const shortAverage = average(recentFive);
+  const previousAverage = average(previousFive);
+  const latestPrice = prices[prices.length - 1];
+  const previousPrice = prices[prices.length - 2];
+
+  const movement = shortAverage - previousAverage;
+
+  if (
+    shortAverage > previousAverage &&
+    latestPrice > previousPrice
+  ) {
+    currentSignal = "RISE";
+    currentSignalReason =
+      "Recent average is rising and latest price is higher.";
+  } else if (
+    shortAverage < previousAverage &&
+    latestPrice < previousPrice
+  ) {
+    currentSignal = "FALL";
+    currentSignalReason =
+      "Recent average is falling and latest price is lower.";
+  } else {
+    currentSignal = "WAIT";
+    currentSignalReason =
+      "Market direction is not sufficiently aligned.";
+  }
+
+  updateSignalDisplay({
+    shortAverage,
+    previousAverage,
+    movement
+  });
+}
+
+// UPDATE SIGNAL DISPLAY
+function updateSignalDisplay(details = null) {
+  const display = createSignalDisplay();
+  if (!display) return;
+
+  let signalColor = "#ffffff";
+
+  if (currentSignal === "RISE") {
+    signalColor = "#20d68b";
+  } else if (currentSignal === "FALL") {
+    signalColor = "#ff6262";
+  } else if (currentSignal === "WAIT") {
+    signalColor = "#ffc857";
+  }
+
+  let extra = "";
+
+  if (details) {
+    extra =
+      `<br>Recent average: ${details.shortAverage.toFixed(5)}` +
+      `<br>Previous average: ${details.previousAverage.toFixed(5)}`;
+  }
+
+  display.innerHTML =
+    `PHANTOM SIGNAL ENGINE<br>` +
+    `<span style="color:${signalColor};font-size:23px;">${currentSignal}</span>` +
+    `<br>${currentSignalReason}` +
+    `<br>Ticks collected: ${tickHistory.length}/${MAX_TICKS}` +
+    extra +
+    `<br><small>Analysis only • No contract purchased</small>`;
+}
+
+// RECORD MARKET TICK
+function recordMarketTick(tick) {
+  const price = Number(tick.price);
+  const epoch = Number(tick.epoch);
+
+  if (!Number.isFinite(price) || !Number.isFinite(epoch)) {
+    return;
+  }
+
+  // Do not record the same tick twice.
+  if (epoch === lastTickEpoch) {
+    return;
+  }
+
+  lastTickEpoch = epoch;
+
+  tickHistory.push({
+    price,
+    epoch
+  });
+
+  if (tickHistory.length > MAX_TICKS) {
+    tickHistory.shift();
+  }
+
+  calculateSignal();
 }
 
 // FETCH LIVE PRICE
@@ -154,6 +319,8 @@ async function updateLiveMarket() {
         ).toLocaleTimeString()}`;
     }
 
+    recordMarketTick(data.tick);
+
   } catch (error) {
     if (display) {
       display.textContent = "Market connection: " + error.message;
@@ -184,7 +351,10 @@ function stopMarketUpdates() {
 
 // MARKET SELECTION
 if (marketSelect) {
-  marketSelect.addEventListener("change", updateLiveMarket);
+  marketSelect.addEventListener("change", () => {
+    resetSignalData();
+    updateLiveMarket();
+  });
 }
 
 // DERIV LOGIN
@@ -477,6 +647,10 @@ function validateSettings() {
 
 // FORMAT QUOTE VALUES
 function formatQuote(value, currency) {
+  if (value === null || value === undefined || value === "") {
+    return "Unavailable";
+  }
+
   const number = Number(value);
 
   if (!Number.isFinite(number)) {
@@ -553,6 +727,7 @@ async function activateAutomaticMode() {
       "PHANTOM VOLATILITY HUNTER\n" +
       "DEMO PROPOSAL RESULTS\n\n" +
       "MARKET: " + symbol + "\n" +
+      "SIGNAL: " + currentSignal + "\n" +
       "STAKE: " + formatQuote(stakeInput?.value, currency) + "\n" +
       "DURATION: " + durationInput?.value + " ticks\n\n" +
       "RISE QUOTE\n" +
@@ -607,5 +782,6 @@ function stopAutomaticMode(message) {
 
 // INITIALIZE
 updateMode();
+updateSignalDisplay();
 checkDerivConnection();
 startMarketUpdates();
