@@ -9,6 +9,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
 
 <header class="topbar">
@@ -31,7 +32,7 @@
   <div class="hero-symbol">✦</div>
 </section>
 
-<!-- ACCOUNT -->
+<!-- ACCOUNT OVERVIEW -->
 
 <section class="grid">
 
@@ -63,12 +64,17 @@
   </div>
 
   <div class="mode-switch">
-    <button class="mode active" data-mode="manual">Manual</button>
-    <button class="mode" data-mode="auto">Automatic</button>
+    <button type="button" class="mode active" data-mode="manual">
+      Manual
+    </button>
+
+    <button type="button" class="mode" data-mode="automatic">
+      Automatic
+    </button>
   </div>
 
   <p class="muted small" id="modeDescription">
-    Review signals and choose whether to trade.
+    Manual mode selected. Select a PHANTOM bot.
   </p>
 
   <label class="field-label" for="market">Market</label>
@@ -84,9 +90,9 @@
   <label class="field-label" for="strategy">Strategy</label>
 
   <select id="strategy">
-    <option>Digit Matches / Differs</option>
-    <option>Digit Over / Under</option>
-    <option>Rise / Fall</option>
+    <option value="matches_differs">Digit Matches / Differs</option>
+    <option value="over_under">Digit Over / Under</option>
+    <option value="rise_fall">Rise / Fall</option>
   </select>
 </article>
 
@@ -123,11 +129,11 @@
   </div>
 
   <p class="hint">
-    Risk limits must be enforced by the backend before live trading.
+    Risk limits must be enforced by the backend before trading.
   </p>
 </article>
 
-<!-- ACTIVITY -->
+<!-- TRADE ACTIVITY -->
 
 <article class="panel">
   <div class="panel-head">
@@ -135,7 +141,7 @@
     <span class="pill">ACTIVITY</span>
   </div>
 
-  <div class="empty-state">
+  <div class="empty-state" id="tradeActivity">
     <div class="empty-icon">⌁</div>
     <strong>No trades yet</strong>
     <p class="muted small">
@@ -160,10 +166,7 @@
 
   <div class="bot-library">
 
-    <!-- BOT 1 -->
-
     <article class="panel bot-card">
-
       <div class="bot-top">
         <div class="bot-icon">✦</div>
         <span class="pill green">AVAILABLE</span>
@@ -180,23 +183,19 @@
           <span class="muted small">STRATEGY</span>
           <strong>Digits</strong>
         </div>
-
         <div>
           <span class="muted small">CONTRACT</span>
           <strong>Matches / Differs</strong>
         </div>
       </div>
 
-      <button class="bot-select" data-bot="PHANTOM DIGITS HUNTER">
+      <button type="button" class="bot-select"
+        data-bot="PHANTOM DIGITS HUNTER">
         Select Bot
       </button>
-
     </article>
 
-    <!-- BOT 2 -->
-
     <article class="panel bot-card">
-
       <div class="bot-top">
         <div class="bot-icon">⌁</div>
         <span class="pill green">AVAILABLE</span>
@@ -213,23 +212,19 @@
           <span class="muted small">STRATEGY</span>
           <strong>Volatility</strong>
         </div>
-
         <div>
           <span class="muted small">CONTRACT</span>
           <strong>Rise / Fall</strong>
         </div>
       </div>
 
-      <button class="bot-select" data-bot="PHANTOM VOLATILITY HUNTER">
+      <button type="button" class="bot-select"
+        data-bot="PHANTOM VOLATILITY HUNTER">
         Select Bot
       </button>
-
     </article>
 
-    <!-- BOT 3 -->
-
     <article class="panel bot-card">
-
       <div class="bot-top">
         <div class="bot-icon">⚡</div>
         <span class="pill green">AVAILABLE</span>
@@ -246,25 +241,23 @@
           <span class="muted small">STRATEGY</span>
           <strong>Digit prediction</strong>
         </div>
-
         <div>
           <span class="muted small">CONTRACT</span>
           <strong>Over / Under</strong>
         </div>
       </div>
 
-      <button class="bot-select" data-bot="PHANTOM OVER UNDER">
+      <button type="button" class="bot-select"
+        data-bot="PHANTOM OVER UNDER">
         Select Bot
       </button>
-
     </article>
 
   </div>
 
-  <!-- SELECTED BOT -->
+  <!-- SELECTED SYSTEM -->
 
   <article class="panel selected-bot-panel">
-
     <div class="panel-head">
       <span>SELECTED SYSTEM</span>
       <span class="pill">LIBRARY</span>
@@ -275,7 +268,6 @@
     <p class="muted small" id="selectedBotMessage">
       Select a system from the Phantom Bot Library above.
     </p>
-
   </article>
 
 </section>
@@ -285,8 +277,8 @@
 <section class="notice">
   <strong>⚠ Risk notice</strong>
   <p>
-    Synthetic indices and options trading involve risk and may result in
-    the loss of your stake. Always test strategies on a demo account.
+    Synthetic indices and options trading involve risk and may result
+    in the loss of your stake. Always test strategies on a demo account.
     Profits are not guaranteed.
   </p>
 </section>
@@ -297,32 +289,7 @@
   PHANTOM DERIVED <span>•</span> POWERED BY PHANTOM HUNTER
 </footer>
 
-<script src="/app.js"></script>
-
-<script>
-document.querySelectorAll(".bot-select").forEach(button => {
-
-  button.addEventListener("click", function() {
-
-    const botName = this.dataset.bot;
-
-    document.getElementById("selectedBotName").textContent = botName;
-
-    document.getElementById("selectedBotMessage").textContent =
-      botName + " selected. Bot trading execution is not activated by this selection.";
-
-    document.querySelectorAll(".bot-select").forEach(btn => {
-      btn.textContent = "Select Bot";
-      btn.classList.remove("selected");
-    });
-
-    this.textContent = "Selected";
-    this.classList.add("selected");
-
-  });
-
-});
-</script>
+<script src="/app.js" defer></script>
 
 </body>
 </html>
