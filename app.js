@@ -1,6 +1,10 @@
 
- // PHANTOM HUNTER - PHANTOM DERIVED
+// PHANTOM HUNTER - PHANTOM DERIVED
+// DEMO-SAFE TRADING DASHBOARD
 
+"use strict";
+
+// ELEMENTS
 const connectBtn = document.getElementById("connectBtn");
 const balanceEl = document.getElementById("balance");
 const connectionNote = document.getElementById("connectionNote");
@@ -23,24 +27,33 @@ let derivAccounts = [];
 let selectedAccount = null;
 let currentMode = "manual";
 let selectedBot = null;
+let engineReady = false;
+let engineBusy = false;
 
 // BOT CONFIGURATION
 const botConfigurations = {
   "PHANTOM DIGITS HUNTER": {
     strategy: "Digit Matches / Differs",
-    description: "Digit-focused system selected. Review settings before trading."
+    description: "Digit-focused trading system selected."
   },
 
   "PHANTOM VOLATILITY HUNTER": {
     strategy: "Rise / Fall",
-    description: "Volatility system selected. Review settings before trading."
+    description: "Volatility trading system selected."
   },
 
   "PHANTOM OVER UNDER": {
     strategy: "Digit Over / Under",
-    description: "Over/Under system selected. Review settings before trading."
+    description: "Digit Over/Under system selected."
   }
 };
+
+// STATUS MESSAGE
+function setStatus(message) {
+  if (modeDescription) {
+    modeDescription.textContent = message;
+  }
+}
 
 // DERIV CONNECTION
 if (connectBtn) {
@@ -51,31 +64,48 @@ if (connectBtn) {
 
 // MODE CONTROL
 modeButtons.forEach(button => {
-  button.addEventListener("click", () => {
-    currentMode = button.dataset.mode;
+  button.addEventListener("click", async () => {
+    const mode = button.dataset.mode;
+
+    if (!["manual", "automatic"].includes(mode)) return;
+
+    if (mode === "automatic") {
+      if (!selectedBot) {
+        setStatus("Please select a PHANTOM bot first.");
+        return;
+      }
+
+      if (!selectedAccount ||
+          String(selectedAccount.account_type).toLowerCase() !== "demo") {
+        setStatus("Automatic mode requires a connected DEMO account.");
+        return;
+      }
+
+      if (!validateSettings()) {
+        setStatus("Please correct your trading settings.");
+        return;
+      }
+
+      await activateAutomaticMode();
+    } else {
+      currentMode = "manual";
+      updateMode();
+    }
 
     modeButtons.forEach(item => {
-      item.classList.remove("active");
+      item.classList.toggle("active", item === button);
     });
-
-    button.classList.add("active");
-
-    updateMode();
   });
 });
 
 // MODE DISPLAY
 function updateMode() {
-  if (!modeDescription) return;
-
   if (currentMode === "manual") {
-    modeDescription.textContent =
+    setStatus(
       selectedBot
         ? `${selectedBot} selected. Manual mode is active.`
-        : "Manual mode selected. Review your market and strategy settings.";
-  } else {
-    modeDescription.textContent =
-      "Automatic mode selected. Trading engine is not activated.";
+        : "Manual mode selected. Select a PHANTOM bot."
+    );
   }
 }
 
@@ -91,21 +121,18 @@ botButtons.forEach(button => {
     const config = botConfigurations[botName];
 
     if (strategySelect) {
-      const matchingOption = Array.from(strategySelect.options).find(
-        option => option.text.trim() === config.strategy
+      let option = Array.from(strategySelect.options).find(
+        item => item.text.trim() === config.strategy
       );
 
-      if (matchingOption) {
-        strategySelect.value = matchingOption.value;
-      } else {
-        const option = document.createElement("option");
-
+      if (!option) {
+        option = document.createElement("option");
         option.text = config.strategy;
         option.value = config.strategy;
-
         strategySelect.appendChild(option);
-        strategySelect.value = config.strategy;
       }
+
+      strategySelect.value = option.value;
     }
 
     if (selectedBotName) {
@@ -128,7 +155,7 @@ botButtons.forEach(button => {
   });
 });
 
-// DISPLAY ACCOUNT
+// ACCOUNT DISPLAY
 function displayAccount(account) {
   if (!account) return;
 
@@ -156,11 +183,16 @@ function displayAccount(account) {
     connectionNote.insertAdjacentElement("afterend", selector);
 
     selector.addEventListener("change", () => {
-      const selected = derivAccounts.find(
+      const account = derivAccounts.find(
         item => item.account_id === selector.value
       );
 
-      displayAccount(selected);
+      displayAccount(account);
+
+      if (currentMode === "automatic" &&
+          String(account?.account_type).toLowerCase() !== "demo") {
+        stopAutomaticMode("REAL account selected. Automatic mode stopped.");
+      }
     });
   }
 
@@ -171,12 +203,10 @@ function displayAccount(account) {
       const option = document.createElement("option");
 
       option.value = item.account_id;
-
       option.textContent =
         `${String(item.account_type || "").toUpperCase()} • ${item.account_id}`;
 
-      option.selected =
-        item.account_id === account.account_id;
+      option.selected = item.account_id === account.account_id;
 
       selector.appendChild(option);
     });
@@ -185,7 +215,7 @@ function displayAccount(account) {
   const status = document.querySelector(".status");
 
   if (status) {
-    status.innerHTML = "<i></i> DERIV CONNECTED";
+    status.textContent = "DERIV CONNECTED";
   }
 
   if (connectBtn) {
@@ -195,13 +225,8 @@ function displayAccount(account) {
 
 // CHECK DERIV CONNECTION
 async function checkDerivConnection() {
-  if (connectionNote) {
-    connectionNote.textContent = "Checking Deriv connection...";
-  }
-
   try {
     const response = await fetch("/api/auth/deriv/status", {
-      method: "GET",
       cache: "no-store",
       credentials: "same-origin"
     });
@@ -209,6 +234,9 @@ async function checkDerivConnection() {
     const data = await response.json();
 
     if (!response.ok || !data.connected) {
+      selectedAccount = null;
+      derivAccounts = [];
+
       if (balanceEl) balanceEl.textContent = "—";
 
       if (connectionNote) {
@@ -237,18 +265,11 @@ async function checkDerivConnection() {
     displayAccount(preferredAccount);
 
   } catch (error) {
-    if (balanceEl) balanceEl.textContent = "—";
-
     if (connectionNote) {
-      connectionNote.textContent =
-        "Connection check failed. Please try again.";
+      connectionNote.textContent = "Connection check failed.";
     }
 
-    if (connectBtn) {
-      connectBtn.textContent = "Connect Deriv account";
-    }
-
-    console.error("PHANTOM HUNTER:", error);
+    console.error("PHANTOM:", error);
   }
 }
 
@@ -259,20 +280,18 @@ function validateSettings() {
   const dailyLoss = Number(dailyLossInput?.value);
   const dailyProfit = Number(dailyProfitInput?.value);
 
-  if (
-    !Number.isFinite(stake) ||
-    stake <= 0 ||
-    !Number.isFinite(duration) ||
-    duration < 1 ||
-    !Number.isFinite(dailyLoss) ||
-    dailyLoss <= 0 ||
-    !Number.isFinite(dailyProfit) ||
-    dailyProfit <= 0
-  ) {
-    return false;
-  }
-
-  return true;
+  return (
+    Number.isFinite(stake) &&
+    stake > 0 &&
+    stake <= 10 &&
+    Number.isInteger(duration) &&
+    duration >= 1 &&
+    duration <= 1000 &&
+    Number.isFinite(dailyLoss) &&
+    dailyLoss > 0 &&
+    Number.isFinite(dailyProfit) &&
+    dailyProfit > 0
+  );
 }
 
 // SETTINGS FEEDBACK
@@ -285,13 +304,89 @@ function validateSettings() {
   if (!input) return;
 
   input.addEventListener("change", () => {
-    if (!validateSettings()) {
-      input.style.borderColor = "#ff4d4d";
-    } else {
-      input.style.borderColor = "";
-    }
+    input.style.borderColor =
+      validateSettings() ? "" : "#ff4d4d";
   });
 });
+
+// AUTOMATIC MODE
+async function activateAutomaticMode() {
+  if (engineBusy) return;
+
+  if (!selectedAccount ||
+      String(selectedAccount.account_type).toLowerCase() !== "demo") {
+    setStatus("DEMO account required.");
+    return;
+  }
+
+  engineBusy = true;
+
+  setStatus("Checking PHANTOM trading engine...");
+
+  try {
+    const response = await fetch("/api/trade", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        mode: "automatic",
+        account_id: selectedAccount.account_id,
+        bot: selectedBot,
+        market: marketSelect?.value || "Volatility 10 Index",
+        strategy: strategySelect?.value || "",
+        stake: Number(stakeInput?.value),
+        duration: Number(durationInput?.value),
+        daily_loss: Number(dailyLossInput?.value),
+        daily_profit: Number(dailyProfitInput?.value)
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Engine request failed.");
+    }
+
+    engineReady = true;
+    currentMode = "automatic";
+
+    setStatus(
+      data.message ||
+      "Engine endpoint responding. Trade execution is not enabled."
+    );
+
+    // This endpoint currently does not execute trades.
+    engineReady = false;
+
+  } catch (error) {
+    currentMode = "manual";
+    engineReady = false;
+
+    setStatus(`Automatic mode unavailable: ${error.message}`);
+
+    console.error("PHANTOM ENGINE:", error);
+
+  } finally {
+    engineBusy = false;
+  }
+}
+
+// STOP AUTOMATIC MODE
+function stopAutomaticMode(message) {
+  currentMode = "manual";
+  engineReady = false;
+
+  modeButtons.forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.mode === "manual"
+    );
+  });
+
+  setStatus(message || "Automatic mode stopped.");
+}
 
 // INITIALIZE
 updateMode();
