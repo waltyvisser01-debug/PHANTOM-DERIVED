@@ -1,3 +1,4 @@
+
 import WebSocket from "ws";
 
 export default async function handler(req, res) {
@@ -12,7 +13,13 @@ export default async function handler(req, res) {
 
   const symbol = String(req.query?.symbol || "R_10");
 
-  const allowedSymbols = ["R_10", "R_25", "R_50", "R_75", "R_100"];
+  const allowedSymbols = [
+    "R_10",
+    "R_25",
+    "R_50",
+    "R_75",
+    "R_100"
+  ];
 
   if (!allowedSymbols.includes(symbol)) {
     return res.status(400).json({
@@ -33,6 +40,7 @@ export default async function handler(req, res) {
 
       function finish(callback, value) {
         if (settled) return;
+
         settled = true;
         clearTimeout(timer);
 
@@ -49,8 +57,7 @@ export default async function handler(req, res) {
 
       socket.on("open", () => {
         socket.send(JSON.stringify({
-          ticks: symbol,
-          subscribe: 0
+          ticks: symbol
         }));
       });
 
@@ -95,7 +102,7 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(502).json({
       success: false,
-      error: error.message
+      error: error.message || "Market data request failed"
     });
   }
 }
