@@ -1,6 +1,6 @@
 
 // PHANTOM HUNTER - PHANTOM DERIVED
-// LIVE MARKET DATA + SIGNAL ENGINE
+// LIVE MARKET DATA + ADVANCED SIGNAL FILTER
 // DEMO PROPOSAL MODE ONLY - NO CONTRACT PURCHASES
 
 "use strict";
@@ -39,9 +39,12 @@ let marketBusy = false;
 // SIGNAL ENGINE STATE
 let tickHistory = [];
 let lastTickEpoch = null;
+
 let currentSignal = "COLLECTING DATA";
 let currentSignalReason = "Waiting for market ticks...";
+
 const MAX_TICKS = 30;
+const MIN_TICKS = 10;
 
 // BOT CONFIGURATION
 const botConfigurations = {
@@ -155,12 +158,14 @@ function createSignalDisplay() {
   return display;
 }
 
-// RESET SIGNAL DATA WHEN MARKET CHANGES
+// RESET SIGNAL DATA
 function resetSignalData() {
   tickHistory = [];
   lastTickEpoch = null;
+
   currentSignal = "COLLECTING DATA";
   currentSignalReason = "Waiting for new market ticks...";
+
   updateSignalDisplay();
 }
 
@@ -173,11 +178,14 @@ function average(values) {
 }
 
 // SIGNAL ENGINE
+// TREND CONFIRMATION + NOISE FILTER
 function calculateSignal() {
-  if (tickHistory.length < 10) {
+  if (tickHistory.length < MIN_TICKS) {
     currentSignal = "COLLECTING DATA";
+
     currentSignalReason =
-      `${tickHistory.length}/10 different ticks collected`;
+      `${tickHistory.length}/${MIN_TICKS} different ticks collected`;
+
     updateSignalDisplay();
     return;
   }
@@ -189,41 +197,78 @@ function calculateSignal() {
 
   const shortAverage = average(recentFive);
   const previousAverage = average(previousFive);
+
   const latestPrice = prices[prices.length - 1];
-  const previousPrice = prices[prices.length - 2];
+
+  // Four latest price changes
+  const recentChanges = [];
+
+  for (let i = prices.length - 4; i < prices.length; i++) {
+    recentChanges.push(prices[i] - prices[i - 1]);
+  }
+
+  const upwardMoves = recentChanges.filter(
+    change => change > 0
+  ).length;
+
+  const downwardMoves = recentChanges.filter(
+    change => change < 0
+  ).length;
+
+  const averageMovement = average(
+    recentChanges.map(change => Math.abs(change))
+  );
 
   const movement = shortAverage - previousAverage;
 
-  if (
+  // Noise filter
+  const noiseThreshold = averageMovement * 0.25;
+
+  const risingTrend =
     shortAverage > previousAverage &&
-    latestPrice > previousPrice
-  ) {
-    currentSignal = "RISE";
-    currentSignalReason =
-      "Recent average is rising and latest price is higher.";
-  } else if (
+    latestPrice > shortAverage &&
+    upwardMoves >= 3 &&
+    movement > noiseThreshold;
+
+  const fallingTrend =
     shortAverage < previousAverage &&
-    latestPrice < previousPrice
-  ) {
-    currentSignal = "FALL";
+    latestPrice < shortAverage &&
+    downwardMoves >= 3 &&
+    Math.abs(movement) > noiseThreshold;
+
+  if (risingTrend) {
+    currentSignal = "RISE";
+
     currentSignalReason =
-      "Recent average is falling and latest price is lower.";
+      "Upward trend confirmed by recent price movements.";
+
+  } else if (fallingTrend) {
+    currentSignal = "FALL";
+
+    currentSignalReason =
+      "Downward trend confirmed by recent price movements.";
+
   } else {
     currentSignal = "WAIT";
+
     currentSignalReason =
-      "Market direction is not sufficiently aligned.";
+      "Trend confirmation failed or price movement is too small.";
   }
 
   updateSignalDisplay({
     shortAverage,
     previousAverage,
-    movement
+    movement,
+    upwardMoves,
+    downwardMoves,
+    noiseThreshold
   });
 }
 
 // UPDATE SIGNAL DISPLAY
 function updateSignalDisplay(details = null) {
   const display = createSignalDisplay();
+
   if (!display) return;
 
   let signalColor = "#ffffff";
@@ -241,7 +286,9 @@ function updateSignalDisplay(details = null) {
   if (details) {
     extra =
       `<br>Recent average: ${details.shortAverage.toFixed(5)}` +
-      `<br>Previous average: ${details.previousAverage.toFixed(5)}`;
+      `<br>Previous average: ${details.previousAverage.toFixed(5)}` +
+      `<br>Upward movements: ${details.upwardMoves}/4` +
+      `<br>Downward movements: ${details.downwardMoves}/4`;
   }
 
   display.innerHTML =
@@ -262,7 +309,7 @@ function recordMarketTick(tick) {
     return;
   }
 
-  // Do not record the same tick twice.
+  // Prevent duplicate ticks
   if (epoch === lastTickEpoch) {
     return;
   }
@@ -336,6 +383,7 @@ async function updateLiveMarket() {
 // START MARKET UPDATES
 function startMarketUpdates() {
   stopMarketUpdates();
+
   updateLiveMarket();
 
   marketTimer = setInterval(updateLiveMarket, 3000);
@@ -533,6 +581,7 @@ function displayAccount(account) {
       const option = document.createElement("option");
 
       option.value = item.account_id;
+
       option.textContent =
         `${String(item.account_type || "").toUpperCase()} • ${item.account_id}`;
 
