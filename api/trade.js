@@ -14,7 +14,8 @@ export default async function handler(req, res) {
   let socket;
 
   try {
-    // Read saved Deriv token
+    const body = req.body || {};
+
     const cookies = Object.fromEntries(
       (req.headers.cookie || "")
         .split(";")
@@ -31,22 +32,47 @@ export default async function handler(req, res) {
     const token = cookies.phantom_deriv_token;
 
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: "Connect your Deriv account first."
-      });
+      throw new Error("Connect your Deriv account first.");
     }
 
-    const accountId = String(req.body?.account_id || "");
+    const accountId = String(body.account_id || "");
+    const symbol = String(body.market || "");
+    const stake = Number(body.stake);
+    const duration = Number(body.duration);
+
+    const allowedSymbols = [
+      "R_10", "R_25", "R_50", "R_75", "R_100"
+    ];
 
     if (!/^DOT[0-9]+$/.test(accountId)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid demo account ID."
-      });
+      throw new Error("Invalid demo account.");
     }
 
-    // Verify account ownership and demo status
+    if (!allowedSymbols.includes(symbol)) {
+      throw new Error("Invalid market.");
+    }
+
+    if (!Number.isFinite(stake) || stake < 0.35 || stake > 10) {
+      throw new Error("Stake must be between 0.35 and 10.");
+    }
+
+    if (
+      !Number.isInteger(duration) ||
+      duration < 1 ||
+      duration > 100
+    ) {
+      throw new Error("Duration must be between 1 and 100 ticks.");
+    }
+
+    if (
+      body.bot !== "PHANTOM VOLATILITY HUNTER" ||
+      body.strategy !== "rise_fall"
+    ) {
+      throw new Error(
+        "Proposal testing currently supports PHANTOM VOLATILITY HUNTER only."
+      );
+    }
+
     const accountsResponse = await fetch(
       "https://api.derivws.com/trading/v1/options/accounts",
       {
@@ -68,9 +94,7 @@ export default async function handler(req, res) {
 
     const accounts = Array.isArray(accountsResult.data)
       ? accountsResult.data
-      : accountsResult.data
-        ? [accountsResult.data]
-        : [];
+      : [];
 
     const account = accounts.find(item =>
       item.account_id === accountId &&
@@ -79,13 +103,9 @@ export default async function handler(req, res) {
     );
 
     if (!account) {
-      return res.status(403).json({
-        success: false,
-        error: "An active DEMO account is required."
-      });
+      throw new Error("An active DEMO account is required.");
     }
 
-    // Request one-time demo WebSocket URL
     const otpResponse = await fetch(
       `https://api.derivws.com/trading/v1/options/accounts/${encodeURIComponent(accountId)}/otp`,
       {
@@ -102,11 +122,10 @@ export default async function handler(req, res) {
     if (!otpResponse.ok || !otpResult.data?.url) {
       throw new Error(
         otpResult.errors?.[0]?.message ||
-        "Could not obtain demo connection."
+        "Unable to obtain demo connection."
       );
     }
 
-    // Only permit the authenticated DEMO endpoint
     const wsUrl = new URL(otpResult.data.url);
 
     if (
@@ -115,16 +134,16 @@ export default async function handler(req, res) {
       wsUrl.pathname !== "/trading/v1/options/ws/demo" ||
       !wsUrl.searchParams.has("otp")
     ) {
-      throw new Error("Invalid demo WebSocket address.");
+      throw new Error("Invalid demo connection address.");
     }
 
-    // Test authenticated WebSocket connection
-    await new Promise((resolve, reject) => {
+    const proposals = await new Promise((resolve, reject) => {
       let settled = false;
+      const results = {};
 
       const timer = setTimeout(() => {
-        finish(reject, new Error("Demo connection timed out."));
-      }, 12000);
+        finish(reject, new Error("Proposal request timed out."));
+      }, 15000);
 
       function finish(callback, value) {
         if (settled) return;
@@ -142,39 +161,107 @@ export default async function handler(req, res) {
       socket = new WebSocket(wsUrl.toString());
 
       socket.on("open", () => {
-        finish(resolve, true);
+        const common = {
+          proposal: 1,
+          amount: stake,
+          basis: "stake",
+          currency: account.currency,
+          duration,
+          duration_unit: "t",
+          underlying_symbol: symbol
+        };
+
+        socket.send(JSON.stringify({
+          ...common,
+          contract_type: "PUT",
+          req_id: 101
+        }));
+
+        socket.send(JSON.stringify({
+          ...common,
+          contract_type: "CALL",
+          req_id: 102
+        }));
+      });
+
+      socket.on("message", message => {
+        try {
+          const data = JSON.parse(message.toString());
+
+          if (data.error) {
+            finish(
+              reject,
+              new Error(data.error.message || "Proposal rejected.")
+            );
+            return;
+          }
+
+          if (data.msg_type !== "proposal" || !data.proposal) {
+            return;
+          }
+
+          if (data.req_id === 101) {
+            results.rise = {
+              contract_type: "PUT",
+              proposal_id: data.proposal.id,
+              ask_price: data.proposal.ask_price,
+              payout: data.proposal.payout,
+              description: data.proposal.longcode
+            };
+          }
+
+          if (data.req_id === 102) {
+            results.fall = {
+              contract_type: "CALL",
+              proposal_id: data.proposal.id,
+              ask_price: data.proposal.ask_price,
+              payout: data.proposal.payout,
+              description: data.proposal.longcode
+            };
+          }
+
+          if (results.rise && results.fall) {
+            finish(resolve, results);
+          }
+
+        } catch {
+          finish(reject, new Error("Invalid Deriv response."));
+        }
       });
 
       socket.on("error", () => {
-        finish(
-          reject,
-          new Error("Demo WebSocket connection failed.")
-        );
+        finish(reject, new Error("Demo WebSocket connection failed."));
       });
 
       socket.on("close", () => {
         if (!settled) {
-          finish(
-            reject,
-            new Error("Demo connection closed unexpectedly.")
-          );
+          finish(reject, new Error("Demo connection closed."));
         }
       });
     });
 
     return res.status(200).json({
       success: true,
-      status: "DEMO_CONNECTED",
+      status: "PROPOSALS_READY",
       mode: "DEMO_ONLY",
       trading: false,
       account_id: accountId,
-      message: "PHANTOM authenticated demo connection successful."
+      market: symbol,
+      stake,
+      duration,
+      currency: account.currency,
+      proposals
     });
 
   } catch (error) {
-    return res.status(502).json({
+    try {
+      socket?.close();
+    } catch {}
+
+    return res.status(400).json({
       success: false,
-      error: error.message || "Demo connection failed."
+      trading: false,
+      error: error.message || "Proposal request failed."
     });
   }
 }
