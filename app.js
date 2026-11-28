@@ -1,6 +1,6 @@
 
 // PHANTOM HUNTER - PHANTOM DERIVED
-// DEMO-SAFE TRADING DASHBOARD
+// LIVE MARKET DATA - DEMO SAFE
 
 "use strict";
 
@@ -30,6 +30,9 @@ let selectedBot = null;
 let engineReady = false;
 let engineBusy = false;
 
+let marketTimer = null;
+let marketBusy = false;
+
 // BOT CONFIGURATION
 const botConfigurations = {
   "PHANTOM DIGITS HUNTER": {
@@ -55,6 +58,130 @@ function setStatus(message) {
   }
 }
 
+// MARKET SYMBOL MAPPING
+function getMarketSymbol() {
+  const market = marketSelect?.value || "Volatility 10 Index";
+
+  const symbols = {
+    "Volatility 10 Index": "R_10",
+    "Volatility 25 Index": "R_25",
+    "Volatility 50 Index": "R_50",
+    "Volatility 75 Index": "R_75",
+    "Volatility 100 Index": "R_100",
+    "R_10": "R_10",
+    "R_25": "R_25",
+    "R_50": "R_50",
+    "R_75": "R_75",
+    "R_100": "R_100"
+  };
+
+  return symbols[market] || "R_10";
+}
+
+// LIVE MARKET DISPLAY
+function createMarketDisplay() {
+  let display = document.getElementById("phantomMarketPrice");
+
+  if (!display && marketSelect) {
+    display = document.createElement("div");
+
+    display.id = "phantomMarketPrice";
+
+    display.style.cssText = `
+      margin-top:12px;
+      padding:15px;
+      background:#071629;
+      border:1px solid #168cff;
+      border-radius:10px;
+      color:white;
+      font-size:16px;
+      font-weight:bold;
+      text-align:center;
+    `;
+
+    marketSelect.insertAdjacentElement("afterend", display);
+  }
+
+  return display;
+}
+
+// FETCH LIVE PRICE
+async function updateLiveMarket() {
+  if (marketBusy) return;
+
+  marketBusy = true;
+
+  const display = createMarketDisplay();
+
+  try {
+    const symbol = getMarketSymbol();
+
+    const response = await fetch(
+      `/api/market?symbol=${encodeURIComponent(symbol)}`,
+      {
+        cache: "no-store",
+        credentials: "same-origin"
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success || !data.tick) {
+      throw new Error(data.error || "Market data unavailable");
+    }
+
+    if (display) {
+      display.innerHTML = `
+        <div style="font-size:12px;color:#8daacb;">
+          LIVE ${data.tick.symbol}
+        </div>
+        <div style="font-size:25px;color:#21d483;margin-top:5px;">
+          ${Number(data.tick.price).toLocaleString("en-US")}
+        </div>
+        <div style="font-size:11px;color:#8daacb;margin-top:5px;">
+          Last update: ${new Date(
+            Number(data.tick.epoch) * 1000
+          ).toLocaleTimeString()}
+        </div>
+      `;
+    }
+
+  } catch (error) {
+    if (display) {
+      display.textContent = "Market connection: " + error.message;
+    }
+
+    console.error("PHANTOM MARKET:", error);
+
+  } finally {
+    marketBusy = false;
+  }
+}
+
+// START MARKET UPDATES
+function startMarketUpdates() {
+  stopMarketUpdates();
+
+  updateLiveMarket();
+
+  marketTimer = setInterval(updateLiveMarket, 3000);
+}
+
+// STOP MARKET UPDATES
+function stopMarketUpdates() {
+  if (marketTimer) {
+    clearInterval(marketTimer);
+    marketTimer = null;
+  }
+}
+
+// MARKET SELECTION
+if (marketSelect) {
+  marketSelect.addEventListener("change", () => {
+    updateLiveMarket();
+  });
+}
+
 // DERIV CONNECTION
 if (connectBtn) {
   connectBtn.addEventListener("click", () => {
@@ -75,8 +202,10 @@ modeButtons.forEach(button => {
         return;
       }
 
-      if (!selectedAccount ||
-          String(selectedAccount.account_type).toLowerCase() !== "demo") {
+      if (
+        !selectedAccount ||
+        String(selectedAccount.account_type).toLowerCase() !== "demo"
+      ) {
         setStatus("Automatic mode requires a connected DEMO account.");
         return;
       }
@@ -87,6 +216,7 @@ modeButtons.forEach(button => {
       }
 
       await activateAutomaticMode();
+
     } else {
       currentMode = "manual";
       updateMode();
@@ -189,8 +319,10 @@ function displayAccount(account) {
 
       displayAccount(account);
 
-      if (currentMode === "automatic" &&
-          String(account?.account_type).toLowerCase() !== "demo") {
+      if (
+        currentMode === "automatic" &&
+        String(account?.account_type).toLowerCase() !== "demo"
+      ) {
         stopAutomaticMode("REAL account selected. Automatic mode stopped.");
       }
     });
@@ -313,14 +445,15 @@ function validateSettings() {
 async function activateAutomaticMode() {
   if (engineBusy) return;
 
-  if (!selectedAccount ||
-      String(selectedAccount.account_type).toLowerCase() !== "demo") {
+  if (
+    !selectedAccount ||
+    String(selectedAccount.account_type).toLowerCase() !== "demo"
+  ) {
     setStatus("DEMO account required.");
     return;
   }
 
   engineBusy = true;
-
   setStatus("Checking PHANTOM trading engine...");
 
   try {
@@ -349,16 +482,12 @@ async function activateAutomaticMode() {
       throw new Error(data.error || "Engine request failed.");
     }
 
-    engineReady = true;
-    currentMode = "automatic";
+    engineReady = false;
+    currentMode = "manual";
 
     setStatus(
-      data.message ||
-      "Engine endpoint responding. Trade execution is not enabled."
+      "Engine endpoint responding. Trade execution is not enabled. Manual mode remains active."
     );
-
-    // This endpoint currently does not execute trades.
-    engineReady = false;
 
   } catch (error) {
     currentMode = "manual";
@@ -391,3 +520,4 @@ function stopAutomaticMode(message) {
 // INITIALIZE
 updateMode();
 checkDerivConnection();
+startMarketUpdates();
